@@ -29,10 +29,14 @@ namespace MiltonFretes
         private readonly Button checkButton;
         private readonly Button installButton;
         private readonly Button launcherUpdateButton;
+        private readonly Button restoreButton;
+        private readonly LinkLabel notesLink;
         private readonly ProgressBar progressBar;
         private CancellationTokenSource operation;
         private bool closeAfterOperation;
         private string gameFolder;
+        private string latestModVersion;
+        private string latestModNotes;
 
         internal MainForm(ModUpdater updater, string gameFolder)
         {
@@ -117,15 +121,34 @@ namespace MiltonFretes
             };
             releasesLink.LinkClicked += OpenReleases;
             Controls.Add(releasesLink);
+            notesLink = new LinkLabel
+            {
+                Text = "Notas da versão",
+                Location = new Point(178, 367),
+                Size = new Size(150, 32),
+                TextAlign = ContentAlignment.MiddleLeft,
+                LinkColor = Blue,
+                VisitedLinkColor = Blue,
+                ActiveLinkColor = Ink,
+                TabIndex = 3
+            };
+            notesLink.LinkClicked += (sender, args) => ShowReleaseNotes(
+                "Notas do mod", latestModVersion, latestModNotes, false);
+            notesLink.Enabled = false;
+            Controls.Add(notesLink);
             checkButton = AddButton("Verificar agora", 415, 362, 173, 40, 3, false);
             installButton = AddButton("Instalar mod", 415, 362, 173, 40, 4, true);
             installButton.Enabled = false;
             installButton.Visible = false;
-            launcherUpdateButton = AddButton("Atualizar launcher", 415, 410, 173, 34, 5, false);
+            restoreButton = AddButton("Restaurar backup", 32, 410, 173, 34, 5, false);
+            restoreButton.Enabled = false;
+            restoreButton.Visible = false;
+            launcherUpdateButton = AddButton("Atualizar launcher", 415, 410, 173, 34, 6, false);
             launcherUpdateButton.Enabled = false;
             launcherUpdateButton.Visible = false;
             checkButton.Click += async (sender, args) => await RunAsync(false);
             installButton.Click += async (sender, args) => await RunAsync(true);
+            restoreButton.Click += async (sender, args) => await RestoreBackupAsync();
             launcherUpdateButton.Click += async (sender, args) => await UpdateLauncherAsync();
             Shown += async (sender, args) => await RunAsync(false);
             ResumeLayout(false);
@@ -138,10 +161,11 @@ namespace MiltonFretes
 
             operation = new CancellationTokenSource(TimeSpan.FromMinutes(5));
             var token = operation.Token;
-            checkButton.Enabled = installButton.Enabled = launcherUpdateButton.Enabled = folderButton.Enabled = false;
+            checkButton.Enabled = installButton.Enabled = launcherUpdateButton.Enabled = restoreButton.Enabled = folderButton.Enabled = false;
             installButton.Visible = false;
             progressBar.Style = ProgressBarStyle.Marquee;
             progressBar.Visible = true;
+            restoreButton.Visible = ModUpdater.IsGameFolder(gameFolder) && ModUpdater.ListBackups(gameFolder).Length != 0;
             if (!install)
                 releaseVersion.Text = "—";
             SetStatus("Verificando atualizações…", "Consultando a release mais recente no GitHub.", Ink);
@@ -150,6 +174,9 @@ namespace MiltonFretes
             {
                 var release = await updater.LatestAsync(token);
                 releaseVersion.Text = "v" + release.Version;
+                latestModVersion = "v" + release.Version;
+                latestModNotes = release.Notes;
+                notesLink.Enabled = true;
                 var launcherRelease = await updater.LatestLauncherAsync(token);
                 launcherUpdateButton.Visible = launcherRelease.Version > ModUpdater.CurrentLauncherVersion;
                 if (launcherUpdateButton.Visible)
@@ -157,6 +184,7 @@ namespace MiltonFretes
                 if (!ModUpdater.IsGameFolder(gameFolder))
                 {
                     installedVersion.Text = "—";
+                    restoreButton.Visible = false;
                     SetStatus("Pasta do ETS2 não encontrada", "Abra o ETS2 uma vez ou selecione a pasta que contém os perfis do jogo.", Amber);
                     return;
                 }
@@ -165,6 +193,13 @@ namespace MiltonFretes
                 canInstall = ShowResult(local);
                 if (install && canInstall)
                 {
+                    if (local.NeedsDownload)
+                    {
+                        var action = local.State == ModState.Missing ? "Instalar mod" :
+                            local.State == ModState.Different ? "Reinstalar mod" : "Atualizar mod";
+                        if (!ShowReleaseNotes(action, "v" + release.Version, release.Notes, true))
+                            return;
+                    }
                     IProgress<int> progress = null;
                     if (local.NeedsDownload)
                     {
@@ -179,6 +214,7 @@ namespace MiltonFretes
                     }
 
                     var updated = await Task.Run(() => updater.InstallAsync(gameFolder, release, progress, token), token);
+                    restoreButton.Visible = ModUpdater.ListBackups(gameFolder).Length != 0;
                     canInstall = ShowResult(updated);
                     if (!canInstall && local.State == ModState.Missing)
                         SetStatus("Mod instalado", "Ative Milton Fretes skins no Gerenciador de Mods do ETS2.", Blue);
@@ -226,6 +262,7 @@ namespace MiltonFretes
                 checkButton.Left = canInstall ? installButton.Left - (int)Math.Round(163 * scale) : installButton.Left;
                 installButton.Enabled = installButton.Visible = canInstall;
                 launcherUpdateButton.Enabled = launcherUpdateButton.Visible;
+                restoreButton.Enabled = restoreButton.Visible;
                 if (closeAfterOperation)
                     Close();
                 else if (ActiveControl == folderField)
@@ -252,6 +289,8 @@ namespace MiltonFretes
                     SetStatus("Launcher atualizado", "Você já está usando a versão mais recente.", Blue);
                     return;
                 }
+                if (!ShowReleaseNotes("Atualizar launcher", "v" + release.Version, release.Notes, true))
+                    return;
                 SetStatus("Baixando launcher v" + release.Version, "O executável será conferido pelo SHA-256 antes da troca.", Ink);
                 staged = await updater.DownloadLauncherAsync(release, token);
                 LauncherSelfUpdate.Start(staged, Application.ExecutablePath, release.Sha256);
@@ -296,8 +335,176 @@ namespace MiltonFretes
                 checkButton.Enabled = folderButton.Enabled = true;
                 installButton.Enabled = installButton.Visible;
                 launcherUpdateButton.Enabled = launcherUpdateButton.Visible;
+                restoreButton.Enabled = restoreButton.Visible;
                 if (closeAfterOperation)
                     Close();
+            }
+        }
+
+        private async Task RestoreBackupAsync()
+        {
+            if (operation != null)
+                return;
+            ModPackage[] backups;
+            try { backups = ModUpdater.ListBackups(gameFolder); }
+            catch (UnauthorizedAccessException)
+            {
+                SetStatus("Acesso aos backups bloqueado", "Verifique as permissões da pasta de backups do Milton Fretes.", Amber);
+                return;
+            }
+            catch (IOException)
+            {
+                SetStatus("Não foi possível ler os backups", "Feche o ETS2 e tente novamente.", Amber);
+                return;
+            }
+            if (backups.Length == 0)
+            {
+                restoreButton.Visible = restoreButton.Enabled = false;
+                SetStatus("Nenhum backup encontrado", "As cópias guardadas pelo launcher aparecerão aqui.", Muted);
+                return;
+            }
+
+            var selected = SelectBackup(backups);
+            if (selected == null)
+                return;
+            var version = selected.Version == null ? "versão desconhecida" : "v" + selected.Version;
+            var answer = MessageBox.Show(this,
+                "Restaurar " + version + "? O mod que está na pasta do jogo será guardado como outro backup.",
+                "Restaurar backup", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (answer != DialogResult.Yes)
+                return;
+
+            operation = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            var token = operation.Token;
+            checkButton.Enabled = installButton.Enabled = launcherUpdateButton.Enabled = restoreButton.Enabled = folderButton.Enabled = false;
+            SetStatus("Restaurando backup…", "O launcher está preservando a versão atual antes da troca.", Ink);
+            try
+            {
+                var restored = await Task.Run(() => ModUpdater.RestoreBackup(gameFolder, selected.Path), token);
+                installedVersion.Text = restored.Version == null ? "Desconhecida" : "v" + restored.Version;
+                restoreButton.Visible = ModUpdater.ListBackups(gameFolder).Length != 0;
+                SetStatus("Backup restaurado", "Confira Milton Fretes skins no Gerenciador de Mods do ETS2.", Blue);
+            }
+            catch (OperationCanceledException)
+            {
+                SetStatus("Restauração cancelada", "Tente novamente quando o ETS2 estiver fechado.", Amber);
+            }
+            catch (InvalidDataException error)
+            {
+                SetStatus("Backup inválido", error.Message, Amber);
+            }
+            catch (InvalidOperationException error)
+            {
+                SetStatus("Restauração interrompida", error.Message, Amber);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                SetStatus("Acesso à pasta bloqueado", "Verifique se a pasta de dados do ETS2 permite mover os arquivos.", Amber);
+            }
+            catch (IOException)
+            {
+                SetStatus("Não foi possível restaurar", "Feche o ETS2 e confira o acesso à pasta do mod.", Amber);
+            }
+            finally
+            {
+                operation.Dispose();
+                operation = null;
+                checkButton.Enabled = folderButton.Enabled = true;
+                installButton.Enabled = installButton.Visible;
+                launcherUpdateButton.Enabled = launcherUpdateButton.Visible;
+                restoreButton.Enabled = restoreButton.Visible;
+            }
+        }
+
+        private ModPackage SelectBackup(ModPackage[] backups)
+        {
+            using (var dialog = new Form())
+            using (var list = new ListBox())
+            using (var restore = new Button())
+            using (var cancel = new Button())
+            {
+                dialog.Text = "Restaurar backup do Milton Fretes";
+                dialog.StartPosition = FormStartPosition.CenterParent;
+                dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dialog.MinimizeBox = false;
+                dialog.MaximizeBox = false;
+                dialog.ShowInTaskbar = false;
+                dialog.ClientSize = new Size(520, 340);
+                dialog.BackColor = Navy;
+                dialog.ForeColor = Ink;
+                dialog.Font = Font;
+                dialog.Controls.Add(new Label { Text = "Escolha a cópia do mod que deseja restaurar:", Location = new Point(18, 14), Size = new Size(480, 26), ForeColor = Ink, Font = new Font(Font, FontStyle.Bold) });
+                list.Location = new Point(18, 48);
+                list.Size = new Size(484, 230);
+                list.BackColor = Graphite;
+                list.ForeColor = Ink;
+                list.IntegralHeight = false;
+                foreach (var package in backups)
+                    list.Items.Add(package);
+                list.SelectedIndex = 0;
+                dialog.Controls.Add(list);
+                restore.Text = "Restaurar selecionado";
+                restore.Location = new Point(258, 294);
+                restore.Size = new Size(154, 34);
+                restore.DialogResult = DialogResult.OK;
+                restore.Enabled = list.SelectedItem != null;
+                list.SelectedIndexChanged += (sender, args) => restore.Enabled = list.SelectedItem != null;
+                cancel.Text = "Cancelar";
+                cancel.Location = new Point(420, 294);
+                cancel.Size = new Size(82, 34);
+                cancel.DialogResult = DialogResult.Cancel;
+                dialog.Controls.Add(restore);
+                dialog.Controls.Add(cancel);
+                dialog.AcceptButton = restore;
+                dialog.CancelButton = cancel;
+                return dialog.ShowDialog(this) == DialogResult.OK ? list.SelectedItem as ModPackage : null;
+            }
+        }
+
+        private bool ShowReleaseNotes(string action, string version, string notes, bool confirm)
+        {
+            using (var dialog = new Form())
+            using (var content = new TextBox())
+            using (var accept = new Button())
+            using (var cancel = new Button())
+            {
+                dialog.Text = action + " — " + version;
+                dialog.StartPosition = FormStartPosition.CenterParent;
+                dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dialog.MinimizeBox = false;
+                dialog.MaximizeBox = false;
+                dialog.ShowInTaskbar = false;
+                dialog.ClientSize = new Size(540, 400);
+                dialog.BackColor = Navy;
+                dialog.ForeColor = Ink;
+                dialog.Font = Font;
+                dialog.Controls.Add(new Label { Text = "O que mudou nesta versão", Location = new Point(20, 17), Size = new Size(490, 28), ForeColor = Ink, Font = new Font(Font, FontStyle.Bold) });
+                content.Location = new Point(20, 52);
+                content.Size = new Size(500, 282);
+                content.Multiline = true;
+                content.ReadOnly = true;
+                content.ScrollBars = ScrollBars.Vertical;
+                content.WordWrap = true;
+                content.BackColor = Graphite;
+                content.ForeColor = Ink;
+                content.Text = String.IsNullOrWhiteSpace(notes) ? "Esta release não tem notas de alterações publicadas." : notes.Trim();
+                dialog.Controls.Add(content);
+                accept.Text = confirm ? "Continuar" : "Fechar";
+                accept.Location = new Point(confirm ? 350 : 420, 350);
+                accept.Size = new Size(confirm ? 90 : 100, 34);
+                accept.DialogResult = confirm ? DialogResult.Yes : DialogResult.OK;
+                dialog.Controls.Add(accept);
+                if (confirm)
+                {
+                    cancel.Text = "Cancelar";
+                    cancel.Location = new Point(450, 350);
+                    cancel.Size = new Size(70, 34);
+                    cancel.DialogResult = DialogResult.No;
+                    dialog.Controls.Add(cancel);
+                    dialog.CancelButton = cancel;
+                }
+                dialog.AcceptButton = accept;
+                return dialog.ShowDialog(this) == (confirm ? DialogResult.Yes : DialogResult.OK);
             }
         }
 

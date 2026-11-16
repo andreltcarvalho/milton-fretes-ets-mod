@@ -29,3 +29,7 @@ Para jogar no Comboio, todos devem instalar a mesma versão do pacote, usar o no
 - Confirme que ele está diretamente dentro da pasta `mod` correta, sem uma subpasta extra.
 - No Gerenciador de Mods, verifique se **Milton Fretes skins** está ativo no perfil que você abriu.
 - Se usa uma pasta de dados personalizada, confirme que copiou o arquivo para a pasta desse perfil.
+
+## Backups do launcher
+
+Se o launcher já guardou uma versão anterior, feche o ETS2 e use **Restaurar backup** para escolher qual cópia voltar. O mod que estiver instalado será guardado como backup antes da restauração.

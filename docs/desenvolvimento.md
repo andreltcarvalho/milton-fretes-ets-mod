@@ -26,4 +26,4 @@ No Windows com .NET Framework 4.8, execute na raiz do repositório:
 .\scripts\Compilar-Launcher.ps1
 ```
 
-O executável e seu `SHA256SUMS.txt` são gerados em `dist\launcher`. Publique ambos em uma release com tag `launcher-vX.Y.Z`; mantenha a release mais recente (`latest`) reservada ao pacote `.scs` do mod. O launcher consulta as releases `launcher-v...`, oferece a atualização quando encontra uma versão mais nova e valida o executável com o SHA-256 antes de substituir a cópia local.
+O executável e seu `SHA256SUMS.txt` são gerados em `dist\launcher`. Publique ambos em uma release com tag `launcher-vX.Y.Z`; mantenha a release mais recente (`latest`) reservada ao pacote `.scs` do mod. Escreva as alterações no campo de notas da release. O launcher consulta as releases `launcher-v...`, mostra as notas antes de instalar e oferece a atualização quando encontra uma versão mais nova, validando o executável com SHA-256 antes de substituir a cópia local.

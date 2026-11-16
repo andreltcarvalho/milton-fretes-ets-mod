@@ -32,6 +32,14 @@ namespace MiltonFretes
         internal string Path;
         internal Version Version;
         internal bool IsDirectory;
+        internal string BackupFolder;
+
+        public override string ToString()
+        {
+            var version = Version == null ? "versão desconhecida" : "v" + Version;
+            var backup = String.IsNullOrEmpty(BackupFolder) ? "" : " — backup " + BackupFolder;
+            return version + backup + " — " + System.IO.Path.GetFileName(Path);
+        }
     }
 
     internal sealed class ModRelease
@@ -40,6 +48,7 @@ namespace MiltonFretes
         internal string Download;
         internal long Size;
         internal string Sha256;
+        internal string Notes;
     }
 
     internal sealed class LauncherRelease
@@ -48,13 +57,14 @@ namespace MiltonFretes
         internal string Download;
         internal long Size;
         internal string Sha256;
+        internal string Notes;
     }
 
     internal sealed class ModUpdater
     {
         internal const string Repository = "andreltcarvalho/milton-fretes-ets-mod";
         internal const string Releases = "https://github.com/" + Repository + "/releases";
-        internal static readonly Version CurrentLauncherVersion = new Version(1, 1, 0);
+        internal static readonly Version CurrentLauncherVersion = new Version(1, 2, 0);
         internal const string InstalledFileName = "Milton_Fretes_skins.scs";
         private const string DisplayName = "Milton Fretes skins";
         private const string AssetName = "milton-fretes.scs";
@@ -65,6 +75,7 @@ namespace MiltonFretes
         public sealed class ReleaseResponse
         {
             public string tag_name { get; set; }
+            public string body { get; set; }
             public ReleaseAsset[] assets { get; set; }
             public bool draft { get; set; }
             public bool prerelease { get; set; }
@@ -128,7 +139,8 @@ namespace MiltonFretes
                 Version = candidate.Version,
                 Download = releasePath + LauncherAssetName,
                 Size = package.size,
-                Sha256 = checksum
+                Sha256 = checksum,
+                Notes = candidate.Release.body
             };
         }
 
@@ -217,8 +229,106 @@ namespace MiltonFretes
                 Version = version,
                 Download = releasePath + AssetName,
                 Size = package.size,
-                Sha256 = checksum
+                Sha256 = checksum,
+                Notes = info.body
             };
+        }
+
+        internal static ModPackage[] ListBackups(string gameFolder)
+        {
+            var root = Path.Combine(gameFolder, "Milton Fretes backups");
+            if (!Directory.Exists(root))
+                return new ModPackage[0];
+
+            return Directory.EnumerateDirectories(root)
+                .SelectMany(folder => Directory.EnumerateFileSystemEntries(folder)
+                    .Select(FindPackage)
+                    .Where(package => package != null)
+                    .Select(package =>
+                    {
+                        package.BackupFolder = Path.GetFileName(folder);
+                        return package;
+                    }))
+                .OrderByDescending(package => package.Version)
+                .ThenByDescending(package => Path.GetFileName(Path.GetDirectoryName(package.Path)), StringComparer.OrdinalIgnoreCase)
+                .ThenBy(package => package.Path, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+
+        internal static ModPackage RestoreBackup(string gameFolder, string backupPath)
+        {
+            if (!IsGameFolder(gameFolder))
+                throw new InvalidOperationException("Escolha a pasta de dados do ETS2 antes de restaurar.");
+            RequireGameClosed();
+
+            var backupRoot = Path.GetFullPath(Path.Combine(gameFolder, "Milton Fretes backups"))
+                .TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            var source = Path.GetFullPath(backupPath);
+            if (!source.StartsWith(backupRoot, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("O backup selecionado não está na pasta de backups do Milton Fretes.");
+            var selected = FindPackage(source);
+            if (selected == null)
+                throw new InvalidDataException("O backup selecionado não contém um pacote válido do Milton Fretes.");
+
+            var folder = Path.Combine(gameFolder, "mod");
+            Directory.CreateDirectory(folder);
+            var installed = Directory.EnumerateFileSystemEntries(folder)
+                .Select(FindPackage)
+                .Where(package => package != null)
+                .ToArray();
+            var destination = Path.Combine(folder, selected.IsDirectory ?
+                Path.GetFileNameWithoutExtension(InstalledFileName) : InstalledFileName);
+            if ((File.Exists(destination) || Directory.Exists(destination)) &&
+                !installed.Any(package => SamePath(package.Path, destination)))
+                throw new InvalidOperationException("O nome padrão do mod está sendo usado por outro arquivo. Ele foi mantido intacto.");
+
+            string safetyBackup = null;
+            if (installed.Length != 0)
+            {
+                var stamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss") + "-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+                safetyBackup = Path.Combine(backupRoot.TrimEnd(Path.DirectorySeparatorChar), stamp);
+                Directory.CreateDirectory(safetyBackup);
+            }
+
+            var moved = new System.Collections.Generic.List<ModPackage>();
+            try
+            {
+                foreach (var package in installed)
+                {
+                    var target = Path.Combine(safetyBackup, Path.GetFileName(package.Path));
+                    MovePackage(package.Path, target, package.IsDirectory);
+                    moved.Add(package);
+                }
+                MovePackage(source, destination, selected.IsDirectory);
+                TryRemoveEmptyBackupFolder(Path.GetDirectoryName(source), backupRoot.TrimEnd(Path.DirectorySeparatorChar));
+                return ReadPackage(destination, selected.IsDirectory);
+            }
+            catch
+            {
+                foreach (var package in moved.AsEnumerable().Reverse())
+                {
+                    var target = Path.Combine(safetyBackup, Path.GetFileName(package.Path));
+                    if ((File.Exists(target) || Directory.Exists(target)) &&
+                        !File.Exists(package.Path) && !Directory.Exists(package.Path))
+                        MovePackage(target, package.Path, package.IsDirectory);
+                }
+                TryRemoveEmptyBackupFolder(safetyBackup, backupRoot.TrimEnd(Path.DirectorySeparatorChar));
+                throw;
+            }
+        }
+
+        private static void TryRemoveEmptyBackupFolder(string folder, string root)
+        {
+            try
+            {
+                if (!String.IsNullOrEmpty(folder) && Directory.Exists(folder) &&
+                    !Directory.EnumerateFileSystemEntries(folder).Any())
+                    Directory.Delete(folder);
+                if (Directory.Exists(root) && !Directory.EnumerateFileSystemEntries(root).Any())
+                    Directory.Delete(root);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
         }
 
         internal static InstalledMod Inspect(string gameFolder, ModRelease release)
