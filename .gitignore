@@ -1,0 +1,7 @@
+/Estudos Milton Fretes/
+/dist/
+*.scs
+*.bak
+.env
+.env.*
+!.env.example
