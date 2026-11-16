@@ -64,7 +64,7 @@ namespace MiltonFretes
     {
         internal const string Repository = "andreltcarvalho/milton-fretes-ets-mod";
         internal const string Releases = "https://github.com/" + Repository + "/releases";
-        internal static readonly Version CurrentLauncherVersion = new Version(1, 2, 0);
+        internal static readonly Version CurrentLauncherVersion = new Version(1, 3, 0);
         internal const string InstalledFileName = "Milton_Fretes_skins.scs";
         private const string DisplayName = "Milton Fretes skins";
         private const string AssetName = "milton-fretes.scs";

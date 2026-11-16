@@ -1,8 +1,18 @@
+param(
+    [string] $PastaSaida
+)
+
 $ErrorActionPreference = 'Stop'
 
 $raiz = Split-Path -Parent $PSScriptRoot
 $codigo = Join-Path $raiz 'launcher'
-$destino = Join-Path $raiz 'dist\launcher'
+$destino = if ([string]::IsNullOrWhiteSpace($PastaSaida)) {
+    Join-Path $raiz 'dist\launcher'
+} elseif ([IO.Path]::IsPathRooted($PastaSaida)) {
+    $PastaSaida
+} else {
+    Join-Path $raiz $PastaSaida
+}
 $compilador = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe'
 if (!(Test-Path -LiteralPath $compilador)) {
     throw 'O compilador do .NET Framework nao foi encontrado.'
