@@ -42,13 +42,23 @@ namespace MiltonFretes
         internal string Sha256;
     }
 
+    internal sealed class LauncherRelease
+    {
+        internal Version Version;
+        internal string Download;
+        internal long Size;
+        internal string Sha256;
+    }
+
     internal sealed class ModUpdater
     {
         internal const string Repository = "andreltcarvalho/milton-fretes-ets-mod";
         internal const string Releases = "https://github.com/" + Repository + "/releases";
-        internal const string InstalledFileName = "Milton Fretes skins.scs";
+        internal static readonly Version CurrentLauncherVersion = new Version(1, 1, 0);
+        internal const string InstalledFileName = "Milton_Fretes_skins.scs";
         private const string DisplayName = "Milton Fretes skins";
         private const string AssetName = "milton-fretes.scs";
+        private const string LauncherAssetName = "milton-fretes-launcher.exe";
         private const string ChecksumName = "SHA256SUMS.txt";
         private readonly HttpClient http;
 
@@ -56,6 +66,8 @@ namespace MiltonFretes
         {
             public string tag_name { get; set; }
             public ReleaseAsset[] assets { get; set; }
+            public bool draft { get; set; }
+            public bool prerelease { get; set; }
         }
 
         public sealed class ReleaseAsset
@@ -68,6 +80,99 @@ namespace MiltonFretes
         internal ModUpdater(HttpClient http)
         {
             this.http = http;
+        }
+
+        internal async Task<LauncherRelease> LatestLauncherAsync(CancellationToken cancel)
+        {
+            const string url = "https://api.github.com/repos/" + Repository + "/releases?per_page=100";
+            ReleaseResponse[] releases;
+            using (var response = await http.GetAsync(url, cancel).ConfigureAwait(false))
+            {
+                response.EnsureSuccessStatusCode();
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                releases = new JavaScriptSerializer().Deserialize<ReleaseResponse[]>(json);
+            }
+
+            var candidate = (releases ?? new ReleaseResponse[0])
+                .Where(item => item != null && !item.draft && !item.prerelease)
+                .Select(item => new { Release = item, Version = ParseLauncherTag(item.tag_name) })
+                .Where(item => item.Version != null)
+                .OrderByDescending(item => item.Version)
+                .FirstOrDefault();
+            if (candidate == null)
+                throw new InvalidDataException("Não há uma versão estável do launcher publicada.");
+
+            var assets = candidate.Release.assets ?? new ReleaseAsset[0];
+            var package = assets.FirstOrDefault(asset => asset.name == LauncherAssetName);
+            var checksums = assets.FirstOrDefault(asset => asset.name == ChecksumName);
+            if (package == null || package.size <= 0 || checksums == null)
+                throw new InvalidDataException("A release do launcher está incompleta.");
+
+            var releasePath = Releases + "/download/" + candidate.Release.tag_name + "/";
+            string checksum;
+            using (var response = await http.GetAsync(releasePath + ChecksumName, cancel).ConfigureAwait(false))
+            {
+                response.EnsureSuccessStatusCode();
+                var contents = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var line = Regex.Match(contents, @"(?m)^([a-fA-F0-9]{64})[ \t]+\*?milton-fretes-launcher\.exe[ \t]*\r?$");
+                if (!line.Success)
+                    throw new InvalidDataException("O GitHub não publicou um SHA-256 válido para o launcher.");
+                checksum = line.Groups[1].Value;
+            }
+            if (!String.IsNullOrEmpty(package.digest) && !String.Equals(
+                package.digest, "sha256:" + checksum, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("O SHA-256 do launcher não confere com a release.");
+
+            return new LauncherRelease
+            {
+                Version = candidate.Version,
+                Download = releasePath + LauncherAssetName,
+                Size = package.size,
+                Sha256 = checksum
+            };
+        }
+
+        internal async Task<string> DownloadLauncherAsync(LauncherRelease release, CancellationToken cancel)
+        {
+            var path = Path.Combine(Path.GetDirectoryName(System.Windows.Forms.Application.ExecutablePath),
+                ".milton-fretes-launcher-" + Guid.NewGuid().ToString("N") + ".download");
+            try
+            {
+                long received = 0;
+                using (var response = await http.GetAsync(release.Download, HttpCompletionOption.ResponseHeadersRead, cancel).ConfigureAwait(false))
+                {
+                    response.EnsureSuccessStatusCode();
+                    using (var remote = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
+                    using (var local = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, true))
+                    {
+                        var buffer = new byte[65536];
+                        int length;
+                        while ((length = await remote.ReadAsync(buffer, 0, buffer.Length, cancel).ConfigureAwait(false)) != 0)
+                        {
+                            received += length;
+                            if (received > release.Size)
+                                throw new InvalidDataException("O download do launcher veio com tamanho inválido.");
+                            await local.WriteAsync(buffer, 0, length, cancel).ConfigureAwait(false);
+                        }
+                        await local.FlushAsync(cancel).ConfigureAwait(false);
+                    }
+                }
+                if (received != release.Size || !MatchesHash(path, release.Sha256))
+                    throw new InvalidDataException("O download do launcher não passou na verificação SHA-256.");
+                return path;
+            }
+            catch
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
+                throw;
+            }
+        }
+
+        private static Version ParseLauncherTag(string tag)
+        {
+            return Regex.IsMatch(tag ?? "", @"^launcher-v[0-9]+\.[0-9]+\.[0-9]+\z")
+                ? ParseVersion(tag.Substring("launcher-v".Length)) : null;
         }
 
         internal async Task<ModRelease> LatestAsync(CancellationToken cancel)

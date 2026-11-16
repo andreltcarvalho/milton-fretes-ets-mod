@@ -21,4 +21,6 @@ $parametros = @('/nologo', '/target:winexe', '/platform:anycpu', '/optimize+', '
 if ($LASTEXITCODE -ne 0) {
     throw "Falha ao compilar o launcher. Codigo $LASTEXITCODE."
 }
+$hash = (Get-FileHash -LiteralPath $executavel -Algorithm SHA256).Hash.ToLowerInvariant()
+Set-Content -LiteralPath (Join-Path $destino 'SHA256SUMS.txt') -Value "$hash  milton-fretes-launcher.exe" -Encoding ASCII
 Get-Item -LiteralPath $executavel

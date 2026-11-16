@@ -16,7 +16,7 @@ Notas para manter o mod e publicar releases. O guia para jogadores fica no [READ
 
 4. Crie no GitHub uma release com a tag correspondente, por exemplo `v1.13.0`, anexe os dois arquivos e marque a release como a mais recente.
 
-Mantenha o nome `milton-fretes.scs` em cada release. O launcher consulta a [última release do GitHub](https://api.github.com/repos/andreltcarvalho/milton-fretes-ets-mod/releases/latest) para localizar o pacote e conferir seu SHA-256 antes da instalação.
+Mantenha o nome `milton-fretes.scs` em cada release. O launcher consulta a [última release do GitHub](https://api.github.com/repos/andreltcarvalho/milton-fretes-ets-mod/releases/latest) para localizar o pacote e conferir seu SHA-256 antes da instalação. Na pasta `mod`, o launcher instala como `Milton_Fretes_skins.scs`; versões anteriores com espaços no nome são reconhecidas e renomeadas ao organizar ou atualizar.
 
 ## Compilar o launcher
 
@@ -26,4 +26,4 @@ No Windows com .NET Framework 4.8, execute na raiz do repositório:
 .\scripts\Compilar-Launcher.ps1
 ```
 
-O executável é gerado em `dist\launcher\milton-fretes-launcher.exe`. Publique versões do launcher com tags como `launcher-v1.0.1`; mantenha a release mais recente reservada ao pacote `.scs` do mod.
+O executável e seu `SHA256SUMS.txt` são gerados em `dist\launcher`. Publique ambos em uma release com tag `launcher-vX.Y.Z`; mantenha a release mais recente (`latest`) reservada ao pacote `.scs` do mod. O launcher consulta as releases `launcher-v...`, oferece a atualização quando encontra uma versão mais nova e valida o executável com o SHA-256 antes de substituir a cópia local.

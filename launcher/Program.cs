@@ -8,8 +8,8 @@ using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Milton Fretes Launcher")]
 [assembly: AssemblyProduct("Milton Fretes")]
-[assembly: AssemblyVersion("1.0.1.0")]
-[assembly: AssemblyFileVersion("1.0.1.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 
 namespace MiltonFretes
 {
@@ -39,7 +39,7 @@ namespace MiltonFretes
         {
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             var http = new HttpClient();
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("MiltonFretesLauncher/1.0.1");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("MiltonFretesLauncher/1.1.0");
             http.Timeout = TimeSpan.FromSeconds(40);
             http.MaxResponseContentBufferSize = 1024 * 1024;
             return http;

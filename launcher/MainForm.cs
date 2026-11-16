@@ -28,6 +28,7 @@ namespace MiltonFretes
         private readonly Button folderButton;
         private readonly Button checkButton;
         private readonly Button installButton;
+        private readonly Button launcherUpdateButton;
         private readonly ProgressBar progressBar;
         private CancellationTokenSource operation;
         private bool closeAfterOperation;
@@ -45,7 +46,7 @@ namespace MiltonFretes
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
-            ClientSize = new Size(620, 420);
+            ClientSize = new Size(620, 456);
             AutoScaleDimensions = new SizeF(96, 96);
             AutoScaleMode = AutoScaleMode.Dpi;
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
@@ -120,8 +121,12 @@ namespace MiltonFretes
             installButton = AddButton("Instalar mod", 415, 362, 173, 40, 4, true);
             installButton.Enabled = false;
             installButton.Visible = false;
+            launcherUpdateButton = AddButton("Atualizar launcher", 415, 410, 173, 34, 5, false);
+            launcherUpdateButton.Enabled = false;
+            launcherUpdateButton.Visible = false;
             checkButton.Click += async (sender, args) => await RunAsync(false);
             installButton.Click += async (sender, args) => await RunAsync(true);
+            launcherUpdateButton.Click += async (sender, args) => await UpdateLauncherAsync();
             Shown += async (sender, args) => await RunAsync(false);
             ResumeLayout(false);
         }
@@ -133,7 +138,7 @@ namespace MiltonFretes
 
             operation = new CancellationTokenSource(TimeSpan.FromMinutes(5));
             var token = operation.Token;
-            checkButton.Enabled = installButton.Enabled = folderButton.Enabled = false;
+            checkButton.Enabled = installButton.Enabled = launcherUpdateButton.Enabled = folderButton.Enabled = false;
             installButton.Visible = false;
             progressBar.Style = ProgressBarStyle.Marquee;
             progressBar.Visible = true;
@@ -145,6 +150,10 @@ namespace MiltonFretes
             {
                 var release = await updater.LatestAsync(token);
                 releaseVersion.Text = "v" + release.Version;
+                var launcherRelease = await updater.LatestLauncherAsync(token);
+                launcherUpdateButton.Visible = launcherRelease.Version > ModUpdater.CurrentLauncherVersion;
+                if (launcherUpdateButton.Visible)
+                    launcherUpdateButton.Text = "Atualizar launcher v" + launcherRelease.Version;
                 if (!ModUpdater.IsGameFolder(gameFolder))
                 {
                     installedVersion.Text = "—";
@@ -216,10 +225,79 @@ namespace MiltonFretes
                 checkButton.Width = canInstall ? (int)Math.Round(151 * scale) : installButton.Width;
                 checkButton.Left = canInstall ? installButton.Left - (int)Math.Round(163 * scale) : installButton.Left;
                 installButton.Enabled = installButton.Visible = canInstall;
+                launcherUpdateButton.Enabled = launcherUpdateButton.Visible;
                 if (closeAfterOperation)
                     Close();
                 else if (ActiveControl == folderField)
                     checkButton.Focus();
+            }
+        }
+
+        private async Task UpdateLauncherAsync()
+        {
+            if (operation != null)
+                return;
+            operation = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            var token = operation.Token;
+            string staged = null;
+            checkButton.Enabled = installButton.Enabled = launcherUpdateButton.Enabled = folderButton.Enabled = false;
+            progressBar.Style = ProgressBarStyle.Marquee;
+            progressBar.Visible = true;
+            try
+            {
+                var release = await updater.LatestLauncherAsync(token);
+                if (release.Version <= ModUpdater.CurrentLauncherVersion)
+                {
+                    launcherUpdateButton.Visible = false;
+                    SetStatus("Launcher atualizado", "Você já está usando a versão mais recente.", Blue);
+                    return;
+                }
+                SetStatus("Baixando launcher v" + release.Version, "O executável será conferido pelo SHA-256 antes da troca.", Ink);
+                staged = await updater.DownloadLauncherAsync(release, token);
+                LauncherSelfUpdate.Start(staged, Application.ExecutablePath, release.Sha256);
+                staged = null;
+                closeAfterOperation = true;
+            }
+            catch (OperationCanceledException)
+            {
+                SetStatus("Tempo de conexão esgotado", "Tente atualizar o launcher novamente.", Amber);
+            }
+            catch (HttpRequestException)
+            {
+                SetStatus("Não foi possível acessar o GitHub", "Confira a conexão e tente atualizar de novo.", Amber);
+            }
+            catch (InvalidDataException error)
+            {
+                SetStatus("Não foi possível validar o launcher", error.Message, Amber);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                SetStatus("A pasta do launcher está protegida", "Execute-o de uma pasta onde você possa gravar arquivos para atualizar.", Amber);
+            }
+            catch (IOException)
+            {
+                SetStatus("Não foi possível substituir o launcher", "Feche outras cópias e confira o acesso à pasta.", Amber);
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                SetStatus("Não foi possível iniciar a atualização", "Confira se o launcher pode iniciar arquivos na própria pasta.", Amber);
+            }
+            finally
+            {
+                if (!closeAfterOperation && staged != null && File.Exists(staged))
+                {
+                    try { File.Delete(staged); }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+                progressBar.Visible = false;
+                operation.Dispose();
+                operation = null;
+                checkButton.Enabled = folderButton.Enabled = true;
+                installButton.Enabled = installButton.Visible;
+                launcherUpdateButton.Enabled = launcherUpdateButton.Visible;
+                if (closeAfterOperation)
+                    Close();
             }
         }
 
@@ -234,7 +312,7 @@ namespace MiltonFretes
                 if (duplicates)
                     SetStatus("Mais de uma cópia do mod", "Feche o ETS2 para guardar as cópias extras fora da pasta mod.", Amber);
                 else
-                    SetStatus("O mod está com outro nome", "Feche o ETS2 para usar o mesmo nome de arquivo que o resto do Comboio.", Amber);
+                    SetStatus("O mod está com outro nome", "Feche o ETS2 para padronizar o arquivo como Milton_Fretes_skins.scs.", Amber);
                 return true;
             }
 
