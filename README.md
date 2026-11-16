@@ -1,43 +1,38 @@
 # Milton Fretes para ETS2
 
-Mod da frota Milton Fretes para Euro Truck Simulator 2. Inclui pinturas de caminhões e carretas, carretas dos fretes rápidos, veículos no tráfego e letreiros da empresa. A Logística usa azul-marinho e o Intermodal usa grafite. As carretas trazem “Qualidade em segundo lugar” e frases que variam conforme a carroceria.
+Leve a frota **Milton Fretes** para a estrada no Euro Truck Simulator 2. O mod reúne pinturas da empresa para caminhões e carretas, cargas rápidas, veículos do tráfego e letreiros.
 
-## Launcher para Windows
+![Carretas Milton Fretes com as pinturas Logística e Intermodal](docs/assets/modelos-carretas.png)
 
-Baixe e abra o [Milton Fretes Launcher](https://github.com/andreltcarvalho/milton-fretes-ets-mod/releases/download/launcher-v1.0.1/milton-fretes-launcher.exe). Ele procura a última versão do mod no GitHub ao abrir. Com o ETS2 fechado, clique em **Instalar mod** ou **Atualizar mod**. Se o mod já estiver atualizado e houver cópias extras ou um nome de arquivo diferente, clique em **Organizar mod**.
+*A identidade Milton Fretes nas carretas do mod.*
 
-O launcher usa a pasta de dados do ETS2 em Documentos por padrão. Use **Escolher…** se o jogo estiver usando outra pasta de dados. A organização identifica cópias pelo manifesto e usa o nome `Milton Fretes skins.scs` para o Comboio. Cópias extras e versões substituídas vão para `Milton Fretes backups`, ao lado da pasta `mod`. Depois da primeira instalação ou da troca de nome de uma cópia, confira se **Milton Fretes skins** está ativo no Gerenciador de Mods.
+## O que vem no mod
 
-## Instalação manual
+- **Logística:** identidade azul-marinho.
+- **Intermodal:** identidade grafite.
+- Pinturas para caminhões e diferentes carrocerias de carreta.
+- Carretas de cargas rápidas, veículos no tráfego e letreiros da empresa.
+- Frases e detalhes que variam conforme a carroceria.
 
-1. Feche o ETS2 e baixe o [milton-fretes.scs](https://github.com/andreltcarvalho/milton-fretes-ets-mod/releases/latest/download/milton-fretes.scs).
-2. Renomeie o download para `Milton Fretes skins.scs` e coloque em `Documentos\Euro Truck Simulator 2\mod`. Se ele já existir, substitua pelo novo.
-3. Abra o jogo e ative **Milton Fretes skins** no Gerenciador de Mods do perfil.
+## Instalar ou atualizar pelo launcher
 
-No Comboio, todos devem usar a mesma versão do mod. Confira a versão e as mudanças na [página da release mais recente](https://github.com/andreltcarvalho/milton-fretes-ets-mod/releases/latest).
+1. Baixe e abra o [Milton Fretes Launcher para Windows](https://github.com/andreltcarvalho/milton-fretes-ets-mod/releases/download/launcher-v1.0.1/milton-fretes-launcher.exe).
+2. Aguarde a verificação da versão publicada no GitHub.
+3. Com o ETS2 fechado, clique em **Instalar mod** ou **Atualizar mod**. Se a pasta do jogo não for encontrada ou estiver em outro local, selecione-a em **Escolher…**; se necessário, abra o ETS2 uma vez para criar a pasta de dados.
+4. Na primeira instalação, abra o perfil no jogo e ative **Milton Fretes skins** no **Gerenciador de Mods**.
 
-## Publicação de uma atualização
+O launcher usa `Documentos\Euro Truck Simulator 2` por padrão. Ele verifica o download antes de instalar e pode organizar cópias extras ou corrigir o nome do arquivo para `Milton Fretes skins.scs`. As cópias guardadas ficam em `Milton Fretes backups`, ao lado da pasta `mod`.
 
-Atualize `package_version` e mantenha `display_name: "Milton Fretes skins"` no `manifest.sii` do mod. Gere o `.scs` e revise o conteúdo do pacote antes de publicar, incluindo texturas, configurações e metadados.
+## Jogar no Comboio
 
-Na raiz deste repositório, prepare os arquivos da release com PowerShell:
+Todos os participantes precisam instalar e ativar o mod, usar a **mesma versão** e manter o arquivo com o nome `Milton Fretes skins.scs`. Confiram a versão na [release mais recente](https://github.com/andreltcarvalho/milton-fretes-ets-mod/releases/latest) antes de entrar na sessão.
 
-```powershell
-.\scripts\Preparar-Release.ps1 -Pacote 'C:\caminho\Milton Fretes - v1.12.3.scs' -Versao '1.12.3'
-```
+## Instalação sem launcher
 
-O script confere a versão no manifesto e gera `milton-fretes.scs` e `SHA256SUMS.txt` em `dist\v1.12.3`. No GitHub, crie a release com a tag correspondente, como `v1.12.3`, anexe os dois arquivos e marque a release como a mais recente.
+Prefere instalar manualmente? Consulte o [guia de instalação manual](docs/instalacao-manual.md), com os passos para baixar, copiar, renomear e ativar o arquivo.
 
-Mantenha o nome `milton-fretes.scs` em cada release. O launcher usa a [última release do GitHub](https://api.github.com/repos/andreltcarvalho/milton-fretes-ets-mod/releases/latest) para localizar o pacote e verificar o SHA-256 antes de substituir o mod.
-
-## Compilar o launcher
-
-No Windows com .NET Framework 4.8, execute a partir da raiz:
-
-~~~powershell
-.\scripts\Compilar-Launcher.ps1
-~~~
-
-O executável fica em `dist\launcher\milton-fretes-launcher.exe`. Publique versões do launcher com tags como `launcher-v1.0.1`, mantendo a release mais recente reservada ao `.scs`.
+---
 
 Mod não oficial para Euro Truck Simulator 2, da SCS Software.
+
+Para manutenção do projeto, consulte as [instruções de publicação e compilação](docs/desenvolvimento.md).
