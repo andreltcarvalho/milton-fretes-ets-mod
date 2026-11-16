@@ -156,14 +156,25 @@ namespace MiltonFretes
                 canInstall = ShowResult(local);
                 if (install && canInstall)
                 {
-                    SetStatus("Baixando v" + release.Version + "…", "O arquivo será verificado antes de entrar na pasta do jogo.", Ink);
-                    progressBar.Value = 0;
-                    progressBar.Style = ProgressBarStyle.Continuous;
-                    var progress = new Progress<int>(value => progressBar.Value = value);
-                    await Task.Run(() => updater.InstallAsync(gameFolder, release, progress, token), token);
-                    installedVersion.Text = "v" + release.Version;
-                    SetStatus("Mod instalado", "Ative Milton Fretes skins no Gerenciador de Mods do ETS2.", Blue);
-                    canInstall = false;
+                    IProgress<int> progress = null;
+                    if (local.NeedsDownload)
+                    {
+                        SetStatus("Baixando v" + release.Version + "…", "O arquivo será verificado antes de entrar na pasta do jogo.", Ink);
+                        progressBar.Value = 0;
+                        progressBar.Style = ProgressBarStyle.Continuous;
+                        progress = new Progress<int>(value => progressBar.Value = value);
+                    }
+                    else
+                    {
+                        SetStatus("Organizando o mod…", "O launcher está conferindo as cópias na pasta mod.", Ink);
+                    }
+
+                    var updated = await Task.Run(() => updater.InstallAsync(gameFolder, release, progress, token), token);
+                    canInstall = ShowResult(updated);
+                    if (!canInstall && local.State == ModState.Missing)
+                        SetStatus("Mod instalado", "Ative Milton Fretes skins no Gerenciador de Mods do ETS2.", Blue);
+                    else if (!canInstall && (local.Copies.Length != 0 || local.NeedsRename))
+                        SetStatus("Mod organizado", "Confira se Milton Fretes skins está ativo no Gerenciador de Mods.", Blue);
                 }
             }
             catch (OperationCanceledException)
@@ -214,14 +225,17 @@ namespace MiltonFretes
 
         private bool ShowResult(InstalledMod local)
         {
-            installedVersion.Text = local.Version != null ? "v" + local.Version :
-                local.State == ModState.Missing ? "—" : "Desconhecida";
-            if (local.HasUnrenamedDownload)
+            installedVersion.Text = local.Primary == null ? "—" :
+                local.Primary.Version == null ? "Desconhecida" : "v" + local.Primary.Version;
+            var duplicates = local.Copies.Length != 0;
+            if ((duplicates || local.NeedsRename) && !local.NeedsDownload)
             {
-                SetStatus("Arquivo baixado com outro nome", local.State == ModState.Missing ?
-                    "Renomeie milton-fretes.scs para Milton Fretes skins.scs na pasta mod e verifique de novo." :
-                    "Mova milton-fretes.scs para fora da pasta mod. O launcher usa Milton Fretes skins.scs.", Amber);
-                return false;
+                installButton.Text = "Organizar mod";
+                if (duplicates)
+                    SetStatus("Mais de uma cópia do mod", "Feche o ETS2 para guardar as cópias extras fora da pasta mod.", Amber);
+                else
+                    SetStatus("O mod está com outro nome", "Feche o ETS2 para usar o mesmo nome de arquivo que o resto do Comboio.", Amber);
+                return true;
             }
 
             switch (local.State)
@@ -234,11 +248,15 @@ namespace MiltonFretes
                     return false;
                 case ModState.Update:
                     installButton.Text = "Atualizar mod";
-                    SetStatus("Atualização disponível", "Feche o ETS2 antes de atualizar. A versão atual ficará como backup.", Ink);
+                    SetStatus("Atualização disponível", duplicates ?
+                        "Feche o ETS2 para atualizar e guardar as cópias extras fora da pasta mod." :
+                        "Feche o ETS2 antes de atualizar. A versão atual ficará como backup.", Ink);
                     return true;
                 case ModState.Different:
                     installButton.Text = "Reinstalar mod";
-                    SetStatus("Arquivo local diferente da release", "Reinstale para usar a versão publicada. A cópia atual ficará como backup.", Amber);
+                    SetStatus("Arquivo local diferente da release", duplicates ?
+                        "Reinstale para usar a versão publicada e guardar as cópias extras fora da pasta mod." :
+                        "Reinstale para usar a versão publicada. A cópia atual ficará como backup.", Amber);
                     return true;
                 default:
                     installButton.Text = "Instalar mod";

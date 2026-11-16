@@ -16,9 +16,22 @@ namespace MiltonFretes
 
     internal sealed class InstalledMod
     {
-        internal Version Version;
+        internal ModPackage Primary;
+        internal ModPackage[] Copies;
         internal ModState State;
-        internal bool HasUnrenamedDownload;
+        internal bool NeedsRename;
+
+        internal bool NeedsDownload
+        {
+            get { return State != ModState.Current && State != ModState.Newer; }
+        }
+    }
+
+    internal sealed class ModPackage
+    {
+        internal string Path;
+        internal Version Version;
+        internal bool IsDirectory;
     }
 
     internal sealed class ModRelease
@@ -34,6 +47,7 @@ namespace MiltonFretes
         internal const string Repository = "andreltcarvalho/milton-fretes-ets-mod";
         internal const string Releases = "https://github.com/" + Repository + "/releases";
         internal const string InstalledFileName = "Milton Fretes skins.scs";
+        private const string DisplayName = "Milton Fretes skins";
         private const string AssetName = "milton-fretes.scs";
         private const string ChecksumName = "SHA256SUMS.txt";
         private readonly HttpClient http;
@@ -104,23 +118,36 @@ namespace MiltonFretes
 
         internal static InstalledMod Inspect(string gameFolder, ModRelease release)
         {
-            var path = InstalledPath(gameFolder);
-            var unrenamed = HasUnrenamedDownload(gameFolder);
-            if (!File.Exists(path))
-                return new InstalledMod { State = ModState.Missing, HasUnrenamedDownload = unrenamed };
+            var folder = Path.Combine(gameFolder, "mod");
+            var packages = Directory.Exists(folder) ? Directory.EnumerateFileSystemEntries(folder)
+                .Select(FindPackage)
+                .Where(package => package != null)
+                .OrderByDescending(package => package.Version)
+                .ThenByDescending(package => IsDefaultName(package.Path, package.IsDirectory))
+                .ThenBy(package => package.IsDirectory)
+                .ThenBy(package => package.Path, StringComparer.OrdinalIgnoreCase)
+                .ToArray() : new ModPackage[0];
 
-            var local = ReadVersion(path);
-            var state = ModState.Different;
-            if (local != null)
+            var primary = packages.FirstOrDefault();
+            var state = ModState.Missing;
+            if (primary != null)
             {
-                if (local > release.Version)
+                state = ModState.Different;
+                if (primary.Version > release.Version)
                     state = ModState.Newer;
-                else if (local < release.Version)
+                else if (primary.Version != null && primary.Version < release.Version)
                     state = ModState.Update;
-                else if (MatchesHash(path, release.Sha256))
+                else if (primary.Version == release.Version && !primary.IsDirectory &&
+                    MatchesHash(primary.Path, release.Sha256))
                     state = ModState.Current;
             }
-            return new InstalledMod { Version = local, State = state, HasUnrenamedDownload = unrenamed };
+            return new InstalledMod
+            {
+                Primary = primary,
+                State = state,
+                Copies = packages.Skip(1).ToArray(),
+                NeedsRename = primary != null && !IsDefaultName(primary.Path, primary.IsDirectory)
+            };
         }
 
         internal static bool IsGameFolder(string folder)
@@ -135,32 +162,103 @@ namespace MiltonFretes
                 Directory.Exists(Path.Combine(folder, "steam_profiles"));
         }
 
-        internal async Task InstallAsync(string gameFolder, ModRelease release,
+        internal async Task<InstalledMod> InstallAsync(string gameFolder, ModRelease release,
             IProgress<int> progress, CancellationToken cancel)
         {
-            var destination = InstalledPath(gameFolder);
-            EnsureCanInstall(gameFolder, destination, release.Version);
-            var folder = Path.GetDirectoryName(destination);
-            Directory.CreateDirectory(folder);
-            var staging = Path.Combine(folder, ".milton-fretes-" + Guid.NewGuid().ToString("N") + ".download");
+            if (!IsGameFolder(gameFolder))
+                throw new InvalidOperationException("Escolha a pasta de dados do ETS2 antes de instalar.");
+            RequireGameClosed();
+
+            var folder = Path.Combine(gameFolder, "mod");
+            var installed = Inspect(gameFolder, release);
+            string staging = null;
             try
             {
-                await DownloadAsync(release, staging, progress, cancel).ConfigureAwait(false);
-                if (!MatchesHash(staging, release.Sha256) || ReadVersion(staging) != release.Version)
-                    throw new InvalidDataException("O download falhou na verificação. Tente baixar novamente.");
+                if (installed.NeedsDownload)
+                {
+                    Directory.CreateDirectory(folder);
+                    staging = Path.Combine(folder, ".milton-fretes-" + Guid.NewGuid().ToString("N") + ".download");
+                    await DownloadAsync(release, staging, progress, cancel).ConfigureAwait(false);
+                    var package = ReadPackage(staging, false);
+                    if (!MatchesHash(staging, release.Sha256) || package == null || package.Version != release.Version)
+                        throw new InvalidDataException("O download falhou na verificação. Tente baixar novamente.");
+
+                    installed = Inspect(gameFolder, release);
+                }
 
                 cancel.ThrowIfCancellationRequested();
-                EnsureCanInstall(gameFolder, destination, release.Version);
-                if (File.Exists(destination))
-                    File.Replace(staging, destination, destination + ".bak");
-                else
-                    File.Move(staging, destination);
+                RequireGameClosed();
+                ApplyChanges(gameFolder, folder, installed, staging);
+                return Inspect(gameFolder, release);
             }
             finally
             {
-                if (File.Exists(staging))
+                if (staging != null && File.Exists(staging))
                     File.Delete(staging);
             }
+        }
+
+        private static void ApplyChanges(string gameFolder, string folder, InstalledMod installed, string staging)
+        {
+            var primary = installed.Primary;
+            var replace = installed.NeedsDownload && staging != null;
+            var keepFolder = !replace && primary != null && primary.IsDirectory;
+            var destination = Path.Combine(folder, keepFolder ?
+                Path.GetFileNameWithoutExtension(InstalledFileName) : InstalledFileName);
+            var primaryAtDestination = primary != null && SamePath(primary.Path, destination);
+            if (!primaryAtDestination && (File.Exists(destination) || Directory.Exists(destination)) &&
+                !installed.Copies.Any(copy => SamePath(copy.Path, destination)))
+                throw new InvalidOperationException("O nome do arquivo que seria instalado já é usado por outro mod.");
+
+            string backup = null;
+            if (installed.Copies.Length != 0 || (replace && primary != null))
+            {
+                var stamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss") + "-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+                backup = Path.Combine(gameFolder, "Milton Fretes backups", stamp);
+                Directory.CreateDirectory(backup);
+            }
+
+            foreach (var copy in installed.Copies)
+                MovePackage(copy.Path, Path.Combine(backup, Path.GetFileName(copy.Path)), copy.IsDirectory);
+
+            if (!replace)
+            {
+                if (primary != null && !primaryAtDestination)
+                    MovePackage(primary.Path, destination, primary.IsDirectory);
+                return;
+            }
+            if (primary == null)
+            {
+                File.Move(staging, destination);
+                return;
+            }
+
+            var backedUp = Path.Combine(backup, Path.GetFileName(primary.Path));
+            if (primaryAtDestination && !primary.IsDirectory)
+            {
+                File.Copy(destination, backedUp);
+                File.Replace(staging, destination, null);
+                return;
+            }
+
+            MovePackage(primary.Path, backedUp, primary.IsDirectory);
+            try
+            {
+                File.Move(staging, destination);
+            }
+            catch
+            {
+                MovePackage(backedUp, primary.Path, primary.IsDirectory);
+                throw;
+            }
+        }
+
+        private static void MovePackage(string source, string destination, bool isDirectory)
+        {
+            if (isDirectory)
+                Directory.Move(source, destination);
+            else
+                File.Move(source, destination);
         }
 
         private async Task DownloadAsync(ModRelease release, string path,
@@ -198,29 +296,58 @@ namespace MiltonFretes
             }
         }
 
-        private static string InstalledPath(string gameFolder)
+        private static bool SamePath(string left, string right)
         {
-            return Path.Combine(gameFolder, "mod", InstalledFileName);
+            return String.Equals(left, right, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static bool HasUnrenamedDownload(string gameFolder)
+        private static bool IsDefaultName(string path, bool isDirectory)
         {
-            return File.Exists(Path.Combine(gameFolder, "mod", AssetName));
+            return SamePath(Path.GetFileName(path), isDirectory ?
+                Path.GetFileNameWithoutExtension(InstalledFileName) : InstalledFileName);
         }
 
-        private static void EnsureCanInstall(string gameFolder, string destination, Version version)
+        private static ModPackage FindPackage(string path)
         {
-            if (!IsGameFolder(gameFolder))
-                throw new InvalidOperationException("Escolha a pasta de dados do ETS2 antes de instalar.");
-            RequireGameClosed();
-            if (HasUnrenamedDownload(gameFolder))
-                throw new InvalidOperationException("Há um milton-fretes.scs na pasta mod. Confira o nome do arquivo antes de instalar.");
-            if (File.Exists(destination) && ReadVersion(destination) > version)
-                throw new InvalidOperationException("O mod instalado é mais novo que a release do GitHub.");
+            var isDirectory = Directory.Exists(path);
+            var extension = Path.GetExtension(path);
+            if (!isDirectory && !SamePath(extension, ".scs") && !SamePath(extension, ".zip"))
+                return null;
+            return ReadPackage(path, isDirectory);
         }
 
-        private static Version ReadVersion(string path)
+        private static ModPackage ReadPackage(string path, bool isDirectory)
         {
+            var manifest = ReadManifest(path, isDirectory);
+            if (manifest == null)
+            {
+                // Preserve repair for a damaged archive at the default installation path.
+                return !isDirectory && IsDefaultName(path, false) ? new ModPackage { Path = path } : null;
+            }
+            if (!String.Equals(ManifestValue(manifest, "display_name"), DisplayName, StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            Version version;
+            Version.TryParse(ManifestValue(manifest, "package_version"), out version);
+            if (version != null && version.Revision <= 0)
+                version = new Version(version.Major, version.Minor, Math.Max(version.Build, 0));
+            return new ModPackage { Path = path, Version = version, IsDirectory = isDirectory };
+        }
+
+        private static string ManifestValue(string manifest, string key)
+        {
+            var setting = Regex.Match(manifest, @"(?m)^[ \t]*" + key + @"[ \t]*:[ \t]*""([^""\r\n]+)""");
+            return setting.Success ? setting.Groups[1].Value.Trim() : null;
+        }
+
+        private static string ReadManifest(string path, bool isDirectory)
+        {
+            if (isDirectory)
+            {
+                var manifest = new FileInfo(Path.Combine(path, "manifest.sii"));
+                return manifest.Exists && manifest.Length <= 65536 ? File.ReadAllText(manifest.FullName) : null;
+            }
+
             try
             {
                 using (var zip = ZipFile.OpenRead(path))
@@ -229,10 +356,7 @@ namespace MiltonFretes
                     if (entry == null || entry.Length > 65536)
                         return null;
                     using (var reader = new StreamReader(entry.Open()))
-                    {
-                        var match = Regex.Match(reader.ReadToEnd(), @"(?m)^\s*package_version\s*:\s*""([^""]+)""");
-                        return match.Success ? ParseVersion(match.Groups[1].Value) : null;
-                    }
+                        return reader.ReadToEnd();
                 }
             }
             catch (InvalidDataException)

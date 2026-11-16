@@ -4,9 +4,9 @@ Mod da frota Milton Fretes para Euro Truck Simulator 2. Inclui pinturas de camin
 
 ## Launcher para Windows
 
-Baixe e abra o [Milton Fretes Launcher](https://github.com/andreltcarvalho/milton-fretes-ets-mod/releases/download/launcher-v1.0.0/milton-fretes-launcher.exe). Ele procura a última versão do mod no GitHub ao abrir. Com o ETS2 fechado, clique em **Instalar mod** ou **Atualizar mod**.
+Baixe e abra o [Milton Fretes Launcher](https://github.com/andreltcarvalho/milton-fretes-ets-mod/releases/download/launcher-v1.0.1/milton-fretes-launcher.exe). Ele procura a última versão do mod no GitHub ao abrir. Com o ETS2 fechado, clique em **Instalar mod** ou **Atualizar mod**. Se o mod já estiver atualizado e houver cópias extras ou um nome de arquivo diferente, clique em **Organizar mod**.
 
-O launcher usa a pasta de dados do ETS2 em Documentos por padrão. Use **Escolher…** se o jogo estiver usando outra pasta de dados. Ao atualizar, ele guarda a cópia anterior como `Milton Fretes skins.scs.bak`. Na primeira instalação, ative **Milton Fretes skins** no Gerenciador de Mods do perfil.
+O launcher usa a pasta de dados do ETS2 em Documentos por padrão. Use **Escolher…** se o jogo estiver usando outra pasta de dados. A organização identifica cópias pelo manifesto e usa o nome `Milton Fretes skins.scs` para o Comboio. Cópias extras e versões substituídas vão para `Milton Fretes backups`, ao lado da pasta `mod`. Depois da primeira instalação ou da troca de nome de uma cópia, confira se **Milton Fretes skins** está ativo no Gerenciador de Mods.
 
 ## Instalação manual
 
@@ -18,7 +18,7 @@ No Comboio, todos devem usar a mesma versão do mod. Confira a versão e as muda
 
 ## Publicação de uma atualização
 
-Atualize `package_version` no `manifest.sii` do mod e gere o `.scs`. Revise o conteúdo do pacote antes de publicar, incluindo texturas, configurações e metadados.
+Atualize `package_version` e mantenha `display_name: "Milton Fretes skins"` no `manifest.sii` do mod. Gere o `.scs` e revise o conteúdo do pacote antes de publicar, incluindo texturas, configurações e metadados.
 
 Na raiz deste repositório, prepare os arquivos da release com PowerShell:
 
@@ -38,6 +38,6 @@ No Windows com .NET Framework 4.8, execute a partir da raiz:
 .\scripts\Compilar-Launcher.ps1
 ~~~
 
-O executável fica em `dist\launcher\milton-fretes-launcher.exe`. Publique versões do launcher com tags como `launcher-v1.0.0`, mantendo a release mais recente reservada ao `.scs`.
+O executável fica em `dist\launcher\milton-fretes-launcher.exe`. Publique versões do launcher com tags como `launcher-v1.0.1`, mantendo a release mais recente reservada ao `.scs`.
 
 Mod não oficial para Euro Truck Simulator 2, da SCS Software.

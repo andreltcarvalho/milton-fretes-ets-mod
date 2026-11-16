@@ -35,6 +35,10 @@ try {
     if (!$versaoNoPacote.Success -or $versaoNoPacote.Groups[1].Value -cne $Versao) {
         throw "A versao no manifest.sii deve ser $Versao."
     }
+    $nomeNoPacote = [regex]::Match($texto, '(?m)^[ \t]*display_name[ \t]*:[ \t]*"([^"\r\n]+)"')
+    if (!$nomeNoPacote.Success -or $nomeNoPacote.Groups[1].Value.Trim() -ne 'Milton Fretes skins') {
+        throw 'O display_name no manifest.sii deve ser Milton Fretes skins para o launcher reconhecer o mod.'
+    }
 } finally {
     $arquivo.Dispose()
 }
