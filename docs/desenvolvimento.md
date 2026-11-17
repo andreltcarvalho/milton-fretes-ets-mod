@@ -6,7 +6,7 @@ Notas para manter o mod e publicar releases. O guia para jogadores fica no [READ
 
 O script `scripts/Preparar-Tahoe.py` reúne a versão de teste da caneca e o mod Chevrolet Tahoe autorizado pelo autor em um único pacote de trabalho, incluindo a pintura Milton Fretes. Ele espera os arquivos locais indicados no início do script e valida seus hashes antes de montar o `.scs`; os arquivos de estudo e pacotes de origem não são versionados neste repositório. A configuração de venda usa peças específicas para não alterar os preços das rodas compartilhadas. Confira a pintura, o preço e a compatibilidade no jogo antes de preparar uma release.
 
-O ajuste posterior das faixas e do sinalizador usa `scripts/Ajustar-Tahoe.py`, que também depende dos arquivos de estudo e do cache de conversão locais indicados no script. O sinalizador não apareceu no teste informado pelo jogador.
+O ajuste posterior das faixas usa `scripts/Ajustar-Tahoe.py` e os arquivos de estudo locais. O sinalizador foi retirado: o log do ETS2 registrou um nome de unidade inválido na definição da concessionária, que impedia o carregamento da Tahoe. A correção prepara a versão 1.14.2 sem esse acessório.
 
 ## Publicar uma versão do mod
 
