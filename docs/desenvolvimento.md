@@ -16,7 +16,7 @@ Notas para manter o mod e publicar releases. O guia para jogadores fica no [READ
 
 4. Crie no GitHub uma release com a tag correspondente, por exemplo `v1.13.0`, anexe os dois arquivos e marque a release como a mais recente.
 
-Mantenha o nome `milton-fretes.scs` em cada release. O launcher consulta a [última release do GitHub](https://api.github.com/repos/andreltcarvalho/milton-fretes-ets-mod/releases/latest) para localizar o pacote e conferir seu SHA-256 antes da instalação. Na pasta `mod`, o launcher instala como `Milton_Fretes_skins.scs`; versões anteriores com espaços no nome são reconhecidas e renomeadas ao organizar ou atualizar.
+Mantenha o nome `milton-fretes.scs` em cada release. A partir do launcher 1.3.1, o launcher procura a maior versão estável com tag `vX.Y.Z` e confere seu SHA-256 antes da instalação. O endereço [da última release do GitHub](https://api.github.com/repos/andreltcarvalho/milton-fretes-ets-mod/releases/latest) continua apontando para o mod para downloads manuais e launchers anteriores. Na pasta `mod`, o launcher instala como `Milton_Fretes_skins.scs`; versões anteriores com espaços no nome são reconhecidas e renomeadas ao organizar ou atualizar.
 
 ## Compilar o launcher
 
@@ -26,4 +26,4 @@ No Windows com .NET Framework 4.8, execute na raiz do repositório:
 .\scripts\Compilar-Launcher.ps1
 ```
 
-O executável e seu `SHA256SUMS.txt` são gerados em `dist\launcher`. Publique ambos em uma release com tag `launcher-vX.Y.Z`; mantenha a release mais recente (`latest`) reservada ao pacote `.scs` do mod. Escreva as alterações no campo de notas da release. O launcher consulta as releases `launcher-v...`, mostra as notas antes de instalar e oferece a atualização quando encontra uma versão mais nova, validando o executável com SHA-256 antes de substituir a cópia local.
+O executável e seu `SHA256SUMS.txt` são gerados em `dist\launcher`. Publique ambos em uma release estável com tag `launcher-vX.Y.Z` e desmarque **Set as the latest release** (`make_latest: "false"` pela API). Depois da publicação, confira se `/releases/latest` ainda aponta para a tag do mod. Escreva as alterações no campo de notas da release. O launcher consulta as releases `launcher-v...`, mostra as notas antes de instalar e oferece a atualização quando encontra uma versão mais nova, validando o executável com SHA-256 antes de substituir a cópia local.

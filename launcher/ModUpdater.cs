@@ -64,7 +64,8 @@ namespace MiltonFretes
     {
         internal const string Repository = "andreltcarvalho/milton-fretes-ets-mod";
         internal const string Releases = "https://github.com/" + Repository + "/releases";
-        internal static readonly Version CurrentLauncherVersion = new Version(1, 3, 0);
+        internal const string LauncherVersion = "1.3.1";
+        internal static readonly Version CurrentLauncherVersion = new Version(LauncherVersion);
         internal const string InstalledFileName = "Milton_Fretes_skins.scs";
         private const string DisplayName = "Milton Fretes skins";
         private const string AssetName = "milton-fretes.scs";
@@ -93,7 +94,7 @@ namespace MiltonFretes
             this.http = http;
         }
 
-        internal async Task<LauncherRelease> LatestLauncherAsync(CancellationToken cancel)
+        private async Task<ReleaseResponse[]> ListStableReleasesAsync(CancellationToken cancel)
         {
             const string url = "https://api.github.com/repos/" + Repository + "/releases?per_page=100";
             ReleaseResponse[] releases;
@@ -104,8 +105,15 @@ namespace MiltonFretes
                 releases = new JavaScriptSerializer().Deserialize<ReleaseResponse[]>(json);
             }
 
-            var candidate = (releases ?? new ReleaseResponse[0])
+            return (releases ?? new ReleaseResponse[0])
                 .Where(item => item != null && !item.draft && !item.prerelease)
+                .ToArray();
+        }
+
+        internal async Task<LauncherRelease> LatestLauncherAsync(CancellationToken cancel)
+        {
+            var releases = await ListStableReleasesAsync(cancel).ConfigureAwait(false);
+            var candidate = releases
                 .Select(item => new { Release = item, Version = ParseLauncherTag(item.tag_name) })
                 .Where(item => item.Version != null)
                 .OrderByDescending(item => item.Version)
@@ -189,26 +197,24 @@ namespace MiltonFretes
 
         internal async Task<ModRelease> LatestAsync(CancellationToken cancel)
         {
-            const string url = "https://api.github.com/repos/" + Repository + "/releases/latest";
-            ReleaseResponse info;
-            using (var response = await http.GetAsync(url, cancel).ConfigureAwait(false))
-            {
-                response.EnsureSuccessStatusCode();
-                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                info = new JavaScriptSerializer().Deserialize<ReleaseResponse>(json);
-            }
+            var releases = await ListStableReleasesAsync(cancel).ConfigureAwait(false);
+            var candidate = releases
+                .Where(item => Regex.IsMatch(item.tag_name ?? "", @"^v[0-9]+\.[0-9]+\.[0-9]+\z"))
+                .Select(item => new { Release = item, Version = ParseVersion(item.tag_name.Substring(1)) })
+                .Where(item => item.Version != null)
+                .OrderByDescending(item => item.Version)
+                .FirstOrDefault();
+            if (candidate == null)
+                throw new InvalidDataException("Não há uma versão estável do mod publicada.");
 
-            var tag = info == null ? "" : info.tag_name ?? "";
-            var version = Regex.IsMatch(tag, @"^v[0-9]+\.[0-9]+\.[0-9]+\z") ? ParseVersion(tag.Substring(1)) : null;
-            if (version == null || info.assets == null)
-                throw new InvalidDataException("A versão publicada no GitHub é inválida.");
-
-            var package = info.assets.FirstOrDefault(asset => asset.name == AssetName);
-            var checksums = info.assets.FirstOrDefault(asset => asset.name == ChecksumName);
+            var info = candidate.Release;
+            var assets = info.assets ?? new ReleaseAsset[0];
+            var package = assets.FirstOrDefault(asset => asset.name == AssetName);
+            var checksums = assets.FirstOrDefault(asset => asset.name == ChecksumName);
             if (package == null || package.size <= 0 || checksums == null)
                 throw new InvalidDataException("A release está incompleta. Tente novamente mais tarde.");
 
-            var releasePath = Releases + "/download/" + tag + "/";
+            var releasePath = Releases + "/download/" + info.tag_name + "/";
             string checksum;
             using (var response = await http.GetAsync(releasePath + ChecksumName, cancel).ConfigureAwait(false))
             {
@@ -226,7 +232,7 @@ namespace MiltonFretes
 
             return new ModRelease
             {
-                Version = version,
+                Version = candidate.Version,
                 Download = releasePath + AssetName,
                 Size = package.size,
                 Sha256 = checksum,
