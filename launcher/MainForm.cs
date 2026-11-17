@@ -152,8 +152,15 @@ namespace MiltonFretes
             bool canInstall = false;
             try
             {
-                var release = await updater.LatestAsync(token);
-                await CheckLauncherUpdateAsync(token);
+                ModUpdater.ReleaseResponse[] releases;
+                ModRelease release;
+                using (var lookupTimeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    lookupTimeout.CancelAfter(TimeSpan.FromSeconds(20));
+                    releases = await updater.ListStableReleasesAsync(lookupTimeout.Token);
+                    release = await updater.LatestAsync(lookupTimeout.Token, releases);
+                }
+                CheckLauncherUpdate(releases);
                 if (!ModUpdater.IsGameFolder(gameFolder))
                 {
                     installedVersion.Text = "Instalada: —";
@@ -386,38 +393,26 @@ namespace MiltonFretes
             }
         }
 
-        private async Task CheckLauncherUpdateAsync(CancellationToken token)
+        private void CheckLauncherUpdate(ModUpdater.ReleaseResponse[] releases)
         {
-            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+            var version = updater.LatestLauncherVersion(releases);
+            if (version == null)
             {
-                timeout.CancelAfter(TimeSpan.FromSeconds(15));
-                try
-                {
-                    var release = await updater.LatestLauncherAsync(timeout.Token);
-                    launcherUpdateButton.Visible = release.Version > ModUpdater.CurrentLauncherVersion;
-                    if (launcherUpdateButton.Visible)
-                    {
-                        launcherUpdateButton.Text = "Atualizar launcher v" + release.Version;
-                        launcherStatus.Text = "Nova versão do launcher disponível";
-                    }
-                    else
-                    {
-                        launcherStatus.Text = "Launcher atualizado";
-                    }
-                    launcherStatus.Visible = !launcherUpdateButton.Visible;
-                }
-                catch (OperationCanceledException)
-                {
-                    if (token.IsCancellationRequested)
-                        throw;
-                    ShowLauncherCheckUnavailable();
-                }
-                catch (HttpRequestException) { ShowLauncherCheckUnavailable(); }
-                catch (InvalidDataException) { ShowLauncherCheckUnavailable(); }
-                catch (InvalidOperationException) { ShowLauncherCheckUnavailable(); }
-                catch (IOException) { ShowLauncherCheckUnavailable(); }
-                catch (ArgumentException) { ShowLauncherCheckUnavailable(); }
+                ShowLauncherCheckUnavailable();
+                return;
             }
+
+            launcherUpdateButton.Visible = version > ModUpdater.CurrentLauncherVersion;
+            if (launcherUpdateButton.Visible)
+            {
+                launcherUpdateButton.Text = "Atualizar launcher v" + version;
+                launcherStatus.Text = "Nova versão do launcher disponível";
+            }
+            else
+            {
+                launcherStatus.Text = "Launcher atualizado";
+            }
+            launcherStatus.Visible = !launcherUpdateButton.Visible;
         }
 
         private void ShowLauncherCheckUnavailable()

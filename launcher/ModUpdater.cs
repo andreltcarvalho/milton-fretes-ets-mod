@@ -64,7 +64,7 @@ namespace MiltonFretes
     {
         internal const string Repository = "andreltcarvalho/milton-fretes-ets-mod";
         internal const string Releases = "https://github.com/" + Repository + "/releases";
-        internal const string LauncherVersion = "1.3.1";
+        internal const string LauncherVersion = "1.3.2";
         internal static readonly Version CurrentLauncherVersion = new Version(LauncherVersion);
         internal const string InstalledFileName = "Milton_Fretes_skins.scs";
         private const string DisplayName = "Milton Fretes skins";
@@ -94,7 +94,7 @@ namespace MiltonFretes
             this.http = http;
         }
 
-        private async Task<ReleaseResponse[]> ListStableReleasesAsync(CancellationToken cancel)
+        internal async Task<ReleaseResponse[]> ListStableReleasesAsync(CancellationToken cancel)
         {
             const string url = "https://api.github.com/repos/" + Repository + "/releases?per_page=100";
             ReleaseResponse[] releases;
@@ -113,6 +113,30 @@ namespace MiltonFretes
         internal async Task<LauncherRelease> LatestLauncherAsync(CancellationToken cancel)
         {
             var releases = await ListStableReleasesAsync(cancel).ConfigureAwait(false);
+            return await LatestLauncherAsync(cancel, releases).ConfigureAwait(false);
+        }
+
+        internal Version LatestLauncherVersion(ReleaseResponse[] releases)
+        {
+            var candidate = releases
+                .Select(item => new { Release = item, Version = ParseLauncherTag(item.tag_name) })
+                .Where(item => item.Version != null)
+                .OrderByDescending(item => item.Version)
+                .FirstOrDefault();
+            if (candidate == null)
+                return null;
+
+            var assets = candidate.Release.assets ?? new ReleaseAsset[0];
+            var package = assets.FirstOrDefault(asset => asset.name == LauncherAssetName);
+            var checksums = assets.FirstOrDefault(asset => asset.name == ChecksumName);
+            if (package == null || package.size <= 0 || checksums == null)
+                return null;
+
+            return candidate.Version;
+        }
+
+        private async Task<LauncherRelease> LatestLauncherAsync(CancellationToken cancel, ReleaseResponse[] releases)
+        {
             var candidate = releases
                 .Select(item => new { Release = item, Version = ParseLauncherTag(item.tag_name) })
                 .Where(item => item.Version != null)
@@ -128,19 +152,19 @@ namespace MiltonFretes
                 throw new InvalidDataException("A release do launcher está incompleta.");
 
             var releasePath = Releases + "/download/" + candidate.Release.tag_name + "/";
-            string checksum;
-            using (var response = await http.GetAsync(releasePath + ChecksumName, cancel).ConfigureAwait(false))
+            var checksum = Sha256FromDigest(package.digest);
+            if (checksum == null)
             {
-                response.EnsureSuccessStatusCode();
-                var contents = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                var line = Regex.Match(contents, @"(?m)^([a-fA-F0-9]{64})[ \t]+\*?milton-fretes-launcher\.exe[ \t]*\r?$");
-                if (!line.Success)
-                    throw new InvalidDataException("O GitHub não publicou um SHA-256 válido para o launcher.");
-                checksum = line.Groups[1].Value;
+                using (var response = await http.GetAsync(releasePath + ChecksumName, cancel).ConfigureAwait(false))
+                {
+                    response.EnsureSuccessStatusCode();
+                    var contents = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    var line = Regex.Match(contents, @"(?m)^([a-fA-F0-9]{64})[ \t]+\*?milton-fretes-launcher\.exe[ \t]*\r?$");
+                    if (!line.Success)
+                        throw new InvalidDataException("O GitHub não publicou um SHA-256 válido para o launcher.");
+                    checksum = line.Groups[1].Value;
+                }
             }
-            if (!String.IsNullOrEmpty(package.digest) && !String.Equals(
-                package.digest, "sha256:" + checksum, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("O SHA-256 do launcher não confere com a release.");
 
             return new LauncherRelease
             {
@@ -195,9 +219,24 @@ namespace MiltonFretes
                 ? ParseVersion(tag.Substring("launcher-v".Length)) : null;
         }
 
+        private static string Sha256FromDigest(string digest)
+        {
+            if (String.IsNullOrEmpty(digest))
+                return null;
+            var match = Regex.Match(digest, @"^sha256:([a-fA-F0-9]{64})$");
+            if (!match.Success)
+                throw new InvalidDataException("O GitHub publicou um digest SHA-256 inválido para o arquivo.");
+            return match.Groups[1].Value;
+        }
+
         internal async Task<ModRelease> LatestAsync(CancellationToken cancel)
         {
             var releases = await ListStableReleasesAsync(cancel).ConfigureAwait(false);
+            return await LatestAsync(cancel, releases).ConfigureAwait(false);
+        }
+
+        internal async Task<ModRelease> LatestAsync(CancellationToken cancel, ReleaseResponse[] releases)
+        {
             var candidate = releases
                 .Where(item => Regex.IsMatch(item.tag_name ?? "", @"^v[0-9]+\.[0-9]+\.[0-9]+\z"))
                 .Select(item => new { Release = item, Version = ParseVersion(item.tag_name.Substring(1)) })
@@ -215,20 +254,19 @@ namespace MiltonFretes
                 throw new InvalidDataException("A release está incompleta. Tente novamente mais tarde.");
 
             var releasePath = Releases + "/download/" + info.tag_name + "/";
-            string checksum;
-            using (var response = await http.GetAsync(releasePath + ChecksumName, cancel).ConfigureAwait(false))
+            var checksum = Sha256FromDigest(package.digest);
+            if (checksum == null)
             {
-                response.EnsureSuccessStatusCode();
-                var contents = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                var line = Regex.Match(contents, @"(?m)^([a-fA-F0-9]{64})[ \t]+\*?milton-fretes\.scs[ \t]*\r?$");
-                if (!line.Success)
-                    throw new InvalidDataException("O GitHub não publicou um SHA-256 válido para o mod.");
-                checksum = line.Groups[1].Value;
+                using (var response = await http.GetAsync(releasePath + ChecksumName, cancel).ConfigureAwait(false))
+                {
+                    response.EnsureSuccessStatusCode();
+                    var contents = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    var line = Regex.Match(contents, @"(?m)^([a-fA-F0-9]{64})[ \t]+\*?milton-fretes\.scs[ \t]*\r?$");
+                    if (!line.Success)
+                        throw new InvalidDataException("O GitHub não publicou um SHA-256 válido para o mod.");
+                    checksum = line.Groups[1].Value;
+                }
             }
-
-            if (!String.IsNullOrEmpty(package.digest) && !String.Equals(
-                package.digest, "sha256:" + checksum, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("O SHA-256 do arquivo não confere com a release.");
 
             return new ModRelease
             {
