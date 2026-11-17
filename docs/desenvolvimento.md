@@ -2,6 +2,12 @@
 
 Notas para manter o mod e publicar releases. O guia para jogadores fica no [README](../README.md).
 
+## Pacote de trabalho com a Tahoe
+
+O script `scripts/Preparar-Tahoe.py` reúne a versão de teste da caneca e o mod Chevrolet Tahoe autorizado pelo autor em um único pacote de trabalho, incluindo a pintura Milton Fretes. Ele espera os arquivos locais indicados no início do script e valida seus hashes antes de montar o `.scs`; os arquivos de estudo e pacotes de origem não são versionados neste repositório. A configuração de venda usa peças específicas para não alterar os preços das rodas compartilhadas. Confira a pintura, o preço e a compatibilidade no jogo antes de preparar uma release.
+
+O ajuste posterior das faixas e do sinalizador usa `scripts/Ajustar-Tahoe.py`, que também depende dos arquivos de estudo e do cache de conversão locais indicados no script. O sinalizador não apareceu no teste informado pelo jogador.
+
 ## Publicar uma versão do mod
 
 1. Atualize `package_version` e mantenha `display_name: "Milton Fretes skins"` no `manifest.sii` do mod.

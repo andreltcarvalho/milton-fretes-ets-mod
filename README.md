@@ -13,6 +13,7 @@ Leve a frota **Milton Fretes** para a estrada no Euro Truck Simulator 2. O mod r
 - Pinturas para caminhões e diferentes carrocerias de carreta.
 - Carretas de cargas rápidas, veículos no tráfego e letreiros da empresa.
 - Frases e detalhes que variam conforme a carroceria.
+- Chevrolet Tahoe 2007 para escolta, com pintura Milton Fretes. Modelo original de Nimit, Elaman, obelihnio e Void, incluído com autorização do autor.
 
 ## Instalar ou atualizar pelo launcher
 
@@ -20,6 +21,8 @@ Leve a frota **Milton Fretes** para a estrada no Euro Truck Simulator 2. O mod r
 2. Aguarde a verificação da versão publicada no GitHub.
 3. Com o ETS2 fechado, clique em **Instalar mod** ou **Atualizar mod**. Se a pasta do jogo não for encontrada ou estiver em outro local, selecione-a em **Alterar…**; se necessário, abra o ETS2 uma vez para criar a pasta de dados.
 4. Na primeira instalação, abra o perfil no jogo e ative **Milton Fretes skins** no **Gerenciador de Mods**.
+
+Se você usava o mod separado **Chevrolet Tahoe 2007**, desative-o no Gerenciador de Mods: a Tahoe já está incluída no Milton Fretes.
 
 O launcher usa `Documentos\Euro Truck Simulator 2` por padrão. Antes de instalar uma versão, você pode conferir as **Notas da versão**. Ele verifica o download e pode organizar cópias extras ou corrigir o nome do arquivo para `Milton_Fretes_skins.scs`. Quem ainda tiver `Milton Fretes skins.scs` será migrado automaticamente ao organizar ou atualizar. O próprio launcher também avisa quando há uma nova versão. As cópias guardadas ficam em `Milton Fretes backups`, ao lado da pasta `mod`; use **Restaurar backup** no launcher para escolher uma delas.
 
