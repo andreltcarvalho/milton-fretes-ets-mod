@@ -37,6 +37,7 @@ Estas regras valem para todo o repositório. Em caso de conflito, siga primeiro 
 - Para releases do mod, mantenha `display_name: "Milton Fretes skins"`, confira `package_version`, o conteúdo do `.scs` e os arquivos de checksum gerados pelo script documentado.
 - Para releases do launcher, preserve a publicação separada, os checksums e a regra de não tornar a release do launcher a release `latest` do repositório.
 - Instalação e atualização exigem o ETS2 fechado. Não altere arquivos fora do mod Milton Fretes; mantenha o nome instalado `Milton_Fretes_skins.scs` e a compatibilidade com as versões antigas reconhecidas pela implementação.
+- Sempre que publicar uma nova release do launcher, atualize o link direto de download do launcher no `README.md` para apontar à tag e ao executável dessa release; confira se ambos correspondem antes de concluir. Mantenha `/releases/latest` apontando para o canal do mod.
 - Não publique executáveis ou pacotes, não altere releases remotas e não substitua binários locais como parte de uma tarefa de código sem pedido explícito.
 
 ## Verificação e entrega

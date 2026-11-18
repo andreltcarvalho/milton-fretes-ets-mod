@@ -17,7 +17,7 @@ Leve a frota **Milton Fretes** para a estrada no Euro Truck Simulator 2. O mod r
 
 ## Instalar ou atualizar pelo launcher
 
-1. Baixe e abra o [Milton Fretes Launcher para Windows](https://github.com/andreltcarvalho/milton-fretes-ets-mod/releases/download/launcher-v1.3.1/milton-fretes-launcher.exe).
+1. Baixe e abra o [Milton Fretes Launcher para Windows](https://github.com/andreltcarvalho/milton-fretes-ets-mod/releases/download/launcher-v1.3.2/milton-fretes-launcher.exe).
 2. Aguarde a verificação da versão publicada no GitHub.
 3. Com o ETS2 fechado, clique em **Instalar mod** ou **Atualizar mod**. Se a pasta do jogo não for encontrada ou estiver em outro local, selecione-a em **Alterar…**; se necessário, abra o ETS2 uma vez para criar a pasta de dados.
 4. Na primeira instalação, abra o perfil no jogo e ative **Milton Fretes skins** no **Gerenciador de Mods**.
